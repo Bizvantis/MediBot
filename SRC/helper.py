@@ -1,41 +1,47 @@
-from langchain.document_loaders import PyPDFLoader, DirectoryLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain.document_loaders import PyPDFLoader, DirectoryLoader # For loading PDF documents [1, 4]
+from langchain.text_splitter import RecursiveCharacterTextSplitter # For splitting text into chunks [1, 4]
+from langchain.embeddings import HuggingFaceEmbeddings # For downloading and using embedding models [1, 5]
 
-def load_PDF(data_directory):
+# Function to extract data from PDF files [1, 4]
+def load_pdf_data(data_directory):
     """
-    Loads all PDF documents from the specified data directory.
-
+    Loads PDF documents from a specified directory.
+    
     Args:
         data_directory (str): The path to the directory containing PDF files.
-
+        
     Returns:
-        list: A list of Document objects extracted from the PDFs.
+        list: A list of loaded documents.
     """
-    loader = DirectoryLoader(data_directory, glob="*.pdf", loader_cls=PyPDFLoader)
+    loader = DirectoryLoader(data_directory,
+                             glob="*.pdf", # Only load PDF documents [4]
+                             loader_cls=PyPDFLoader) # Uses PyPDFLoader to extract information [4]
     documents = loader.load()
     return documents
 
-def text_split(extracted_data):
+# Function to split extracted data into text chunks [1, 4]
+def get_text_chunks(extracted_data):
     """
-    Splits the extracted data into smaller, manageable text chunks.
-
+    Splits the extracted document data into smaller text chunks.
+    
     Args:
-        extracted_data (list): A list of Document objects from which to create chunks.
-
+        extracted_data (list): A list of documents extracted from PDFs.
+        
     Returns:
-        list: A list of text chunks (Document objects).
+        list: A list of text chunks.
     """
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=20)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, # Defines a chunk size of 500 characters [4]
+                                                   chunk_overlap=20) # Defines a chunk overlap of 20 characters [4]
     text_chunks = text_splitter.split_documents(extracted_data)
     return text_chunks
 
-def downloadFaceEmbeddings():
+# Function to download the Hugging Face embedding model [1, 5]
+def download_hugging_face_embeddings():
     """
-    Downloads and initializes a Hugging Face embedding model.
-
+    Downloads and initialises a Hugging Face embedding model.
+    
     Returns:
-        HuggingFaceEmbeddings: An initialized Hugging Face embedding model.
+        HuggingFaceEmbeddings: The loaded embedding model.
     """
-    embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    return embedding_model
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2") # Uses the 'all-MiniLM-L6-v2' model [5]
+    return embeddings

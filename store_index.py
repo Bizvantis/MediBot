@@ -1,67 +1,68 @@
-import os
-from dotenv import load_dotenv
-from pinecone import Pinecone, ServerlessSpec # [2, 3] - Pinecone client for index management
-from langchain_pinecone import PineconeVectorStore # [1, 4] - For interacting with Pinecone via Langchain
-from SRC.helper import load_PDF, text_split, download_hugging_face_embedding_model# [1] - Custom utility functions from src/helper.py
 
-# Load environment variables from .env file [2, 3]
+# runned this once and vector db created
+
+from SRC.helper import load_pdf_data, get_text_chunks, download_hugging_face_embeddings # Import utility functions from helper.py
+from pinecone import Pinecone, ServerlessSpec # For Pinecone interaction and serverless specification
+from langchain_pinecone import PineconeVectorStore # LangChain integration with Pinecone
+from dotenv import load_dotenv # For loading environment variables from .env file
+import os # For interacting with the operating system, particularly for environment variables
+
+# Load all environment variables from the .env file
 load_dotenv()
 
-# Set Pinecone API key from environment variables [2, 3]
-PINECONE_API_KEY = os.getenv("PINECONE_API_KEY") # [3]
-os.environ["PINECONE_API_KEY"] = PINECONE_API_KEY # [4]
+# Retrieve Pinecone API key from environment variables
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+# Although not directly used for Pinecone initialisation, the OpenAI API key is also typically loaded here if needed elsewhere
+# OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
 
-# Define constants for the Pinecone index [2, 3]
-INDEX_NAME = "medical-bot" # [2, 3]
-EMBEDDING_DIMENSION = 384 # The dimension of the vector embeddings, as stated for the 'all-MiniLM-L6-v2' model [5, 6]
-CLOUD_PROVIDER = "aws" # Free tier uses AWS [6]
-AWS_REGION = "us-east-1" # Default region for the free tier [3, 6]
-DATA_DIRECTORY = "data/" # Location where the PDF medical book is stored [2, 7]
+# Set Pinecone API key in the environment for LangChain's internal use [3]
+os.environ["PINECONE_API_KEY"] = PINECONE_API_KEY
 
-def store_embeddings_in_pinecone():
-    """
-    Orchestrates the process of loading medical data,
-    splitting it into chunks, generating embeddings,
-    and storing them in Pinecone.
-    """
-    print("Starting the embedding storage process...")
-
-    # Load data from PDF documents [2]
-    print(f"Loading PDF data from {DATA_DIRECTORY}...")
-    extracted_data = load_PDF(DATA_DIRECTORY) # [2]
-    print(f"Extracted data from {len(extracted_data)} pages.")
-
-    # Split the extracted data into smaller chunks [2]
-    print("Splitting data into text chunks...")
-    text_chunks = text_split(extracted_data) # [2]
-    print(f"Created {len(text_chunks)} text chunks.")
-
-    # Download the embedding model from Hugging Face [2]
-    print("Downloading Hugging Face embedding model...")
-    embeddings = download_hugging_face_embedding_model() # [2]
-    print("Embedding model downloaded successfully.")
-
-    # Initialize Pinecone [2]
-    pinecone = Pinecone(api_key=PINECONE_API_KEY) # [2, 3]
-
-    # Check if the index already exists in Pinecone, if not, create it [3, 6]
-    if INDEX_NAME not in pinecone.list_indexes():
-        print(f"Creating Pinecone index '{INDEX_NAME}'...")
-        pinecone.create_index(
-            name=INDEX_NAME, # [3]
-            dimension=EMBEDDING_DIMENSION, # [3]
-            metric="cosine", # Metric used for similarity search [6]
-            spec=ServerlessSpec(cloud=CLOUD_PROVIDER, region=AWS_REGION) # [3]
-        )
-        print(f"Pinecone index '{INDEX_NAME}' created.")
-    else:
-        print(f"Pinecone index '{INDEX_NAME}' already exists.")
-
-    # Store the text chunks and their embeddings into the Pinecone index [2, 4]
-    print("Storing embeddings in Pinecone. This may take some time...")
-    PineconeVectorStore.from_documents(text_chunks, embeddings, index_name=INDEX_NAME) # [2, 4]
-    print("Embeddings successfully stored in Pinecone.")
-    print("Process completed. Your knowledge base is ready.")
+# Define the directory where your PDF data is stored [2, 4]
+DATA_DIRECTORY = "data/"
+# Define the name for your Pinecone index [2, 5]
+INDEX_NAME = "medical-chatbot" 
 
 if __name__ == "__main__":
-    store_embeddings_in_pinecone()
+    print("Starting data ingestion and index storage process...")
+
+    # 1. Load data from PDF files located in the specified directory [2, 6]
+    extracted_data = load_pdf_data(DATA_DIRECTORY)
+    print(f"Number of pages extracted: {len(extracted_data)}")
+
+    # 2. Split the extracted data into manageable text chunks [2, 6]
+    text_chunks = get_text_chunks(extracted_data)
+    print(f"Number of text chunks created: {len(text_chunks)}")
+
+    # 3. Download the Hugging Face embedding model [2, 7]
+    embeddings = download_hugging_face_embeddings()
+    print("Hugging Face embedding model downloaded.")
+
+    # 4. Initialise Pinecone and create the index if it doesn't already exist [2, 5]
+    # The environment "us-east-1" is an example; choose the region closest to you or as provided by Pinecone [5]
+    pinecone_client = Pinecone(api_key=PINECONE_API_KEY, environment="us-east-1") 
+    print("Pinecone client initialised.")
+
+    # Check if the index exists before attempting to create it [5]
+    if INDEX_NAME not in pinecone_client.list_indexes():
+        print(f"Pinecone index '{INDEX_NAME}' does not exist. Creating it now...")
+        # Create the index with the appropriate dimension (384 for 'all-MiniLM-L6-v2') [5, 7]
+        pinecone_client.create_index(
+            name=INDEX_NAME,
+            dimension=384, # Dimension based on the 'all-MiniLM-L6-v2' model [7]
+            metric='cosine', # Similarity metric for vector search [8]
+            spec=ServerlessSpec(cloud='aws', region='us-east-1') # Serverless instance on AWS (example) [8]
+        )
+        print(f"Pinecone index '{INDEX_NAME}' created successfully.")
+    else:
+        print(f"Pinecone index '{INDEX_NAME}' already exists. Skipping creation.")
+
+    # 5. Store the text chunks (converted to vector embeddings) in the Pinecone index [2, 3]
+    print("Storing embeddings in Pinecone. This may take some time...")
+    PineconeVectorStore.from_documents(
+        text_chunks, # The documents to be embedded and stored
+        embeddings, # The embedding model to use
+        index_name=INDEX_NAME # The name of the Pinecone index
+    )
+    print("All embeddings stored in Pinecone.")
+    print("Data ingestion and index storage process completed.")
